@@ -70,12 +70,12 @@ var tabularOnRendered = function () {
       template.tabular.sort.set(Util.getMongoSort(data.order, template.tabular.columns));
       // Update pubSelector
       var pubSelector = getPubSelector(
-        template.tabular.selector,
-        (data.search && data.search.value) || null,
-        template.tabular.searchFields,
-        template.tabular.searchCaseInsensitive,
-        template.tabular.splitSearchByWhitespace,
-        data.columns || null
+          template.tabular.selector,
+          (data.search && data.search.value) || null,
+          template.tabular.searchFields,
+          template.tabular.searchCaseInsensitive,
+          template.tabular.splitSearchByWhitespace,
+          data.columns || null
       );
       template.tabular.pubSelector.set(pubSelector);
 
@@ -97,13 +97,13 @@ var tabularOnRendered = function () {
       var options = template.tabular.options.get();
       if (options.search && options.search.onEnterOnly) {
         $('.dataTables_filter input')
-          .unbind()
-          .bind('keyup change', function (event) {
-            if (!table) return;
-            if (event.keyCode === 13 || this.value === '') {
-              table.search(this.value).draw();
-            }
-          });
+            .unbind()
+            .bind('keyup change', function (event) {
+              if (!table) return;
+              if (event.keyCode === 13 || this.value === '') {
+                table.search(this.value).draw();
+              }
+            });
       }
     }
   };
@@ -212,12 +212,12 @@ var tabularOnRendered = function () {
     //console.log('tabular_getInfo autorun');
 
     Meteor.subscribe(
-      "tabular_getInfo",
-      template.tabular.tableName.get(),
-      template.tabular.pubSelector.get(),
-      template.tabular.sort.get(),
-      template.tabular.skip.get(),
-      template.tabular.limit.get(),
+        "tabular_getInfo",
+        template.tabular.tableName.get(),
+        template.tabular.pubSelector.get(),
+        template.tabular.sort.get(),
+        template.tabular.skip.get(),
+        template.tabular.limit.get(),
         function() {
           // this callback is there only to handle a case where a change in pubSelector
           // doesn't actually get any new rows. This causes the 'processing' indicator
@@ -275,12 +275,14 @@ var tabularOnRendered = function () {
       }
     }
 
-    template.tabular.tableDef.sub.subscribe(
-      template.tabular.docPub.get(),
-      tableName,
-      tableInfo.ids || [],
-      fields
-    );
+    if (!_.isEmpty(tableInfo.ids)) {
+      template.tabular.tableDef.sub.subscribe(
+          template.tabular.docPub.get(),
+          tableName,
+          tableInfo.ids || [],
+          fields
+      );
+    }
   });
 
   // Build the table. We rerun this only when the table
@@ -342,6 +344,35 @@ var tabularOnRendered = function () {
 
     if (!collection || !tableInfo) {
       return;
+    }
+
+    // if we are paging, and there are no records on the current page
+    // automagically go to to the current last page
+    if (_.isEmpty(tableInfo.ids)) {
+      var pageSize = Tracker.nonreactive(function() {
+        return template.tabular.limit.get();
+      });
+
+      var skip = Tracker.nonreactive(function() {
+        return template.tabular.skip.get();
+      });
+
+      var recordsTotal = tableInfo.recordsTotal;
+
+      if (skip > 0 && pageSize > 0 && recordsTotal > 0) {
+        var totalPages = Math.ceil(recordsTotal / pageSize);
+        var page = Math.max(0, totalPages - 1);
+
+        // change page in DataTable
+        var dt = $tableElement.DataTable();
+        dt.page(page); // go to the last page
+
+        // change the selector
+        template.tabular.skip.set(page * pageSize);
+
+        // skip the rest of the function cause it will re-run in a second anyways
+        return;
+      }
     }
 
     // Build options object to pass to `find`.
